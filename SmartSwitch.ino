@@ -21,9 +21,9 @@ void setup() {
     }
 
     byte mac[6];
+    srand(time(NULL));
     for (byte i = 0; i < 6; i++) {
         if (EEPROM.read(1000 + i) == 0) {
-            srand(time(NULL));
             EEPROM.update(1000 + i, rand() % 256);
         }
 
@@ -43,20 +43,21 @@ void loop() {
 
     if (client && client.available()) {
         byte requestType = client.read();
+        Serial.println(requestType);
         switch (requestType) {
-            case 0:
+            case 1:
                 sendIOLength();
                 break;
-            case 1:
+            case 2:
                 sendInputs();
                 break;
-            case 2:
+            case 3:
                 sendOutputs();
                 break;
-            case 3:
+            case 4:
                 readPin();
                 break;
-            case 4:
+            case 5:
                 writePin();
                 break;
             default:
@@ -78,7 +79,6 @@ void loop() {
 }
 
 void sendIOLength() {
-    Serial.println(ioLength);
     client.write(ioLength);
 }
 
