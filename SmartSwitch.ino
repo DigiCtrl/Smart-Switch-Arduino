@@ -43,7 +43,6 @@ void loop() {
 
     if (client && client.available()) {
         byte requestType = client.read();
-        Serial.println(requestType);
         switch (requestType) {
             case 1:
                 sendIOLength();
@@ -59,9 +58,6 @@ void loop() {
                 break;
             case 5:
                 writePin();
-                break;
-            default:
-                client.write(1);
                 break;
         }
         client.stop();
