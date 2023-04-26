@@ -4,10 +4,11 @@
 #include <Ethernet.h>
 #include <EEPROM.h>
 
-byte inputs[] = { A0, A1, A2, A3, A4, A5, 9 };
-byte outputs[] = { 8, 7, 6, 5, 4, 3, 2 };
+byte inputs[] = { A5, A4, A3, A2, A1, A0 };
+byte outputs[] = { 2, 3, 4, 5, 6, 7 };
 byte ioLength = sizeof(inputs) / sizeof(inputs[0]);
 
+bool linked = false;
 EthernetServer server(23);
 EthernetClient client;
 
@@ -20,22 +21,34 @@ void setup() {
         digitalWrite(outputs[i], EEPROM.read(outputs[i]));
     }
 
-    byte mac[6];
-    srand(time(NULL));
-    for (byte i = 0; i < 6; i++) {
-        if (EEPROM.read(1000 + i) == 0) {
-            EEPROM.update(1000 + i, rand() % 256);
-        }
-
-        mac[i] = EEPROM.read(1000 + i);
+    if (Ethernet.linkStatus() == LinkON) {
+        connect();
     }
-
-    Ethernet.begin(mac);
-    server.begin();
-    Serial.println(Ethernet.localIP());
 }
 
 void loop() {
+    if (Ethernet.linkStatus() == LinkOFF) {
+        linked = false;
+    }
+
+    if (!linked && Ethernet.linkStatus() == LinkON) {
+        connect();
+    }
+
+    for (byte i = 0; i < ioLength; i++) {
+        if (inRead(inputs[i]) > LOW) {
+            byte newState = EEPROM.read(outputs[i]) == LOW ? HIGH : LOW;
+            changeState(outputs[i], newState);
+      
+            // wait until release
+            while (inRead(inputs[i]) > LOW) {}
+        }
+    }
+
+    if (!linked) {
+        return;
+    }
+
     EthernetClient newClient = server.accept();
     if (newClient) {
         client = newClient;
@@ -62,16 +75,23 @@ void loop() {
         }
         client.stop();
     }
+}
 
-    for (byte i = 0; i < ioLength; i++) {
-        if (inRead(inputs[i]) > LOW) {
-            byte newState = EEPROM.read(outputs[i]) == LOW ? HIGH : LOW;
-            changeState(outputs[i], newState);
-      
-            // wait until release
-            while (inRead(inputs[i]) > LOW) {}
+void connect() {
+    byte mac[6];
+    srand(time(NULL));
+    for (byte i = 0; i < 6; i++) {
+        if (EEPROM.read(1000 + i) == 0) {
+            EEPROM.update(1000 + i, rand() % 256);
         }
+
+        mac[i] = EEPROM.read(1000 + i);
     }
+
+    linked = true;
+    Ethernet.begin(mac);
+    server.begin();
+    Serial.println(Ethernet.localIP());
 }
 
 void sendIOLength() {
