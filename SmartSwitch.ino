@@ -4,8 +4,8 @@
 #include <Ethernet.h>
 #include <EEPROM.h>
 
-byte inputs[] = { A5, A4, A3, A2, A1, A0 };
-byte outputs[] = { 2, 3, 4, 5, 6, 7 };
+byte inputs[] = { A0, A1, A2, A3, A4, A5, 2 };
+byte outputs[] = { 9, 8, 7, 6, 5, 4, 3 };
 byte ioLength = sizeof(inputs) / sizeof(inputs[0]);
 
 bool linked = false;
@@ -35,20 +35,6 @@ void loop() {
         connect();
     }
 
-    for (byte i = 0; i < ioLength; i++) {
-        if (inRead(inputs[i]) > LOW) {
-            byte newState = EEPROM.read(outputs[i]) == LOW ? HIGH : LOW;
-            changeState(outputs[i], newState);
-      
-            // wait until release
-            while (inRead(inputs[i]) > LOW) {}
-        }
-    }
-
-    if (!linked) {
-        return;
-    }
-
     EthernetClient newClient = server.accept();
     if (newClient) {
         client = newClient;
@@ -74,6 +60,16 @@ void loop() {
                 break;
         }
         client.stop();
+    }
+
+    for (byte i = 0; i < ioLength; i++) {
+        if (inRead(inputs[i]) > LOW) {
+            byte newState = EEPROM.read(outputs[i]) == LOW ? HIGH : LOW;
+            changeState(outputs[i], newState);
+      
+            // wait until release
+            while (inRead(inputs[i]) > LOW) {}
+        }
     }
 }
 
