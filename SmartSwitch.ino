@@ -12,10 +12,6 @@ EthernetServer server(23);
 EthernetClient client;
 
 void setup() {
-    Serial.begin(9600);
-
-    pinMode(2, OUTPUT);
-
     for (byte i = 0; i < ioLength; i++) {
         pinMode(inputs[i], INPUT);
         pinMode(outputs[i], OUTPUT);
@@ -31,17 +27,27 @@ void setup() {
 
         mac[i] = EEPROM.read(1000 + i);
     }
-    
     Ethernet.begin(mac);
-    Serial.println(Ethernet.localIP());
     
     server.begin();
-
-    digitalWrite(2, HIGH);
 }
 
 void loop() {
-    if (!(server)) {
+    for (byte i = 0; i < ioLength; i++) {
+        if (inRead(inputs[i]) > LOW) {
+            byte newState = EEPROM.read(outputs[i]) == LOW ? HIGH : LOW;
+            changeState(outputs[i], newState);
+      
+            // wait until release
+            while (inRead(inputs[i]) > LOW) {}
+        }
+    }
+    
+    if (Ethernet.linkStatus() == LinkOFF) {
+        return;
+    }
+    
+    if (!server) {
         server.begin();
     }
 
@@ -70,16 +76,6 @@ void loop() {
                 break;
         }
         client.stop();
-    }
-
-    for (byte i = 0; i < ioLength; i++) {
-        if (inRead(inputs[i]) > LOW) {
-            byte newState = EEPROM.read(outputs[i]) == LOW ? HIGH : LOW;
-            changeState(outputs[i], newState);
-      
-            // wait until release
-            while (inRead(inputs[i]) > LOW) {}
-        }
     }
 
     Ethernet.maintain();
