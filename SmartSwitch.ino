@@ -5,7 +5,6 @@
 #include <EEPROM.h>
 
 byte inputs[] = { A0, A1, A2, A3, A4, A5 };
-byte outputs[] = { 9, 8, 7, 6, 5, 4 };
 byte ioLength = sizeof(inputs) / sizeof(inputs[0]);
 
 EthernetServer server(23);
@@ -14,8 +13,10 @@ EthernetClient client;
 void setup() {
     for (byte i = 0; i < ioLength; i++) {
         pinMode(inputs[i], INPUT);
-        pinMode(outputs[i], OUTPUT);
-        digitalWrite(outputs[i], EEPROM.read(outputs[i]));
+
+        byte output = i + 2;
+        pinMode(output, OUTPUT);
+        digitalWrite(output, EEPROM.read(output));
     }
     
     byte mac[6];
@@ -28,25 +29,28 @@ void setup() {
         mac[i] = EEPROM.read(1000 + i);
     }
     Ethernet.begin(mac);
-    
-    server.begin();
+
+    if (Ethernet.linkStatus() == LinkON) {
+        server.begin();
+    }
 }
 
 void loop() {
     for (byte i = 0; i < ioLength; i++) {
-        if (inRead(inputs[i]) > LOW) {
-            byte newState = EEPROM.read(outputs[i]) == LOW ? HIGH : LOW;
-            changeState(outputs[i], newState);
+        if (digitalRead(inputs[i]) > LOW) {
+            byte output = i + 2;
+            byte newState = EEPROM.read(output) == LOW ? HIGH : LOW;
+            changeState(output, newState);
       
             // wait until release
-            while (inRead(inputs[i]) > LOW) {}
+            while (digitalRead(inputs[i]) > LOW) {}
         }
     }
-    
+
     if (Ethernet.linkStatus() == LinkOFF) {
         return;
     }
-    
+
     if (!server) {
         server.begin();
     }
@@ -75,6 +79,7 @@ void loop() {
                 writePin();
                 break;
         }
+        client.flush();
         client.stop();
     }
 
@@ -90,6 +95,11 @@ void sendInputs() {
 }
 
 void sendOutputs() {
+    byte outputs[ioLength];
+    for (byte i = 0; i < ioLength; i++) {
+        outputs[i] = i + 2;
+    }
+    
     client.write(outputs, ioLength);
 }
 
@@ -105,14 +115,6 @@ void writePin() {
     changeState(pin, newState);
 
     client.write((byte) 0);
-}
-
-byte inRead(byte pinNumber) {
-    if (pinNumber > NUM_DIGITAL_PINS) {
-        return analogRead(pinNumber - NUM_DIGITAL_PINS);
-    }
-  
-    return digitalRead(pinNumber);
 }
 
 void changeState(byte pin, byte newState) {
