@@ -4,22 +4,37 @@
 #include <Ethernet.h>
 #include <EEPROM.h>
 
-byte inputs[] = { A0, A1, A2, A3, A4, A5 };
-byte ioLength = sizeof(inputs) / sizeof(inputs[0]);
+const byte inputs[] = { A0, A1, A2, A3, A4, A5 };
+const byte ioLength = sizeof(inputs) / sizeof(inputs[0]);
+byte eepromLocation[ioLength];
 
+byte mac[6];
 EthernetServer server(23);
 EthernetClient client;
 
 void setup() {
     for (byte i = 0; i < ioLength; i++) {
+        eepromLocation[i] = i + 2;
+        byte value = EEPROM.read(eepromLocation[i]);
+        for (byte j = 0; j < 5; j++) {
+            if (value != EEPROM.read(i + 2)) {
+                eepromLocation[i] += NUM_DIGITAL_PINS;
+                break;
+            }
+        }
+    }
+    
+    for (byte i = 0; i < ioLength; i++) {
         pinMode(inputs[i], INPUT);
 
         byte output = i + 2;
         pinMode(output, OUTPUT);
-        digitalWrite(output, EEPROM.read(output));
+        digitalWrite(output, EEPROM.read(eepromLocation[i]));
     }
-    
-    byte mac[6];
+
+    pinMode(9, OUTPUT);
+    digitalWrite(9, HIGH);
+
     srand(time(NULL));
     for (byte i = 0; i < 6; i++) {
         if (EEPROM.read(1000 + i) == 0) {
@@ -30,18 +45,16 @@ void setup() {
     }
     Ethernet.begin(mac);
 
-    if (Ethernet.linkStatus() == LinkON) {
-        server.begin();
-    }
+    server.begin();
 }
 
 void loop() {
     for (byte i = 0; i < ioLength; i++) {
         if (digitalRead(inputs[i]) > LOW) {
             byte output = i + 2;
-            byte newState = EEPROM.read(output) == LOW ? HIGH : LOW;
+            byte newState = EEPROM.read(eepromLocation[i]) == LOW ? HIGH : LOW;
             changeState(output, newState);
-      
+
             // wait until release
             while (digitalRead(inputs[i]) > LOW) {}
         }
@@ -49,10 +62,6 @@ void loop() {
 
     if (Ethernet.linkStatus() == LinkOFF) {
         return;
-    }
-
-    if (!server) {
-        server.begin();
     }
 
     EthernetClient newClient = server.accept();
@@ -83,7 +92,15 @@ void loop() {
         client.stop();
     }
 
-    Ethernet.maintain();
+    byte maintainResult = Ethernet.maintain();
+    if (maintainResult == 1 || maintainResult == 3) {
+        digitalWrite(9, LOW);
+        delay(1);
+        digitalWrite(9, HIGH);
+
+        Ethernet.begin(mac);
+        server.begin();
+    }
 }
 
 void sendIOLength() {
@@ -99,13 +116,13 @@ void sendOutputs() {
     for (byte i = 0; i < ioLength; i++) {
         outputs[i] = i + 2;
     }
-    
+
     client.write(outputs, ioLength);
 }
 
 void readPin() {
     byte pin = client.read();
-    byte state = EEPROM.read(pin);
+    byte state = EEPROM.read(eepromLocation[pin - 2]);
     client.write(state);
 }
 
@@ -119,5 +136,5 @@ void writePin() {
 
 void changeState(byte pin, byte newState) {
     digitalWrite(pin, newState);
-    EEPROM.update(pin, newState);
+    EEPROM.update(eepromLocation[pin - 2], newState);
 }
